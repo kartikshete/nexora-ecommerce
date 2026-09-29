@@ -1,6 +1,6 @@
 # ⚡ NEXORA — Premium Modern E-Commerce Platform
 
-> A high-performance, minimalist, and accessible frontend e-commerce experience inspired by modern luxury brands.
+> A high-performance, minimalist, and accessible frontend e-commerce experience inspired by modern luxury platforms.
 
 ![React](https://img.shields.io/badge/React-18.3-blue?style=for-the-badge&logo=react)
 ![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite)
@@ -12,28 +12,53 @@
 
 ## 📐 System Design & Architecture
 
-### 1. High-Level Data Flow Architecture
+### 1. High-Level System Architecture
 
 ```mermaid
-flowchart TD
-    User([User / Browser]) <--> UI[React View Component Tree]
-    
-    subgraph Routing Layer
-        UI <--> Router[React Router v6]
+graph TD
+    subgraph Client ["🖥️ Client / View Layer"]
+        UI["React UI Pages (Home, Products, Details, Cart)"]
+        Router["React Router v6 Navigation"]
     end
 
-    subgraph Context & State Management Layer
-        UI <--> ShopContext[ShopContext / Store State]
-        UI <--> ThemeContext[ThemeContext / Dark Mode]
+    subgraph State ["⚡ State & Context Layer"]
+        ShopCtx["ShopContext (Cart, Wishlist, Search, Toast)"]
+        ThemeCtx["ThemeContext (Light / Dark Mode)"]
     end
 
-    subgraph Data & Storage Layer
-        ShopContext <--> ProductsDB[(products.js Dataset)]
-        ShopContext <--> CartWishlistLS[(LocalStorage: Cart & Wishlist)]
-        ThemeContext <--> ThemeLS[(LocalStorage: Theme Preference)]
+    subgraph Storage ["💾 Data & Storage Layer"]
+        ProductsData[("products.js (Static Dataset)")]
+        LocalStore[("Browser LocalStorage")]
+        DOM[("HTML Document (.dark Class)")]
     end
 
-    ThemeContext -. Toggle .dark class .-> DOM[document.documentElement]
+    UI <--> Router
+    UI <--> ShopCtx
+    UI <--> ThemeCtx
+    ShopCtx <--> ProductsData
+    ShopCtx <--> LocalStore
+    ThemeCtx <--> LocalStore
+    ThemeCtx --> DOM
+```
+
+#### Visual Data Flow Schema
+
+```
+[ User Interaction ] 
+        │
+        ▼
+[ View Layer (Pages / Components) ]
+        │
+        ├──► [ React Router v6 ] ──► (URL Routing & Navigation)
+        │
+        ├──► [ Theme Context ]  ──► (DOM Root .dark Class & LocalStorage)
+        │
+        └──► [ Shop Context ]   ──► [ Products Dataset ]
+                   │
+                   ├──► Cart State       ──► [ LocalStorage ]
+                   ├──► Wishlist State   ──► [ LocalStorage ]
+                   ├──► Active Filters   ──► (Live Product Grid)
+                   └──► Notification Toast
 ```
 
 ---
