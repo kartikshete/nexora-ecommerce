@@ -19,7 +19,11 @@ const sendTokenResponse = (user, statusCode, res) => {
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone || '',
+      avatar: user.avatar || '',
       role: user.role,
+      addresses: user.addresses || [],
+      notificationPreferences: user.notificationPreferences || {},
       createdAt: user.createdAt,
     },
   });
@@ -167,7 +171,11 @@ const getMe = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone || '',
+        avatar: user.avatar || '',
         role: user.role,
+        addresses: user.addresses || [],
+        notificationPreferences: user.notificationPreferences || {},
         createdAt: user.createdAt,
       },
     });
