@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useShop } from '../hooks/useShop';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import UserDropdown from './UserDropdown';
 import {
   ShoppingBag,
   Heart,
@@ -151,21 +152,8 @@ export const Navbar = () => {
 
             {/* Auth Buttons */}
             {isAuthenticated ? (
-              <div className="hidden sm:flex items-center space-x-2">
-                <Link
-                  to="/profile"
-                  className="flex items-center space-x-1.5 text-xs font-semibold px-4 py-2.5 rounded-full border border-gray-300 dark:border-zinc-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>{user?.name?.split(' ')[0] || 'Profile'}</span>
-                </Link>
-                <button
-                  onClick={() => { logout(); navigate('/'); }}
-                  className="flex items-center space-x-1.5 text-xs font-semibold px-3 py-2.5 rounded-full text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  aria-label="Logout"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+              <div className="hidden sm:flex items-center">
+                <UserDropdown />
               </div>
             ) : (
               <Link
