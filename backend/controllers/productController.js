@@ -1,7 +1,16 @@
 const Product = require('../models/Product');
 
+/**
+ * Escapes special characters for safe regular expression querying.
+ * @param {string} str 
+ * @returns {string}
+ */
+const escapeRegex = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
 // ─────────────────────────────────────────────────
-// @desc    Get all products (with search, filter, sort, pagination)
+// @desc    Get all active products with pagination, search, filter, and sort
 // @route   GET /api/products
 // @access  Public
 // ─────────────────────────────────────────────────
@@ -17,75 +26,146 @@ const getProducts = async (req, res) => {
       limit = 12,
     } = req.query;
 
-    // 1. Build Query Filter
-    // Always exclude inactive products from public search
+    // ── 1. Validate Pagination Parameters ─────────
+    let pageNum = 1;
+    if (page !== undefined && page !== null && page !== '') {
+      const parsedPage = Number(page);
+      if (!Number.isInteger(parsedPage) || parsedPage < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Page must be a positive integer greater than or equal to 1.',
+        });
+      }
+      pageNum = parsedPage;
+    }
+
+    let limitNum = 12;
+    if (limit !== undefined && limit !== null && limit !== '') {
+      const parsedLimit = Number(limit);
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        return res.status(400).json({
+          success: false,
+          message: 'Limit must be a positive integer between 1 and 100.',
+        });
+      }
+      limitNum = parsedLimit;
+    }
+
+    // ── 2. Validate Price Range Parameters ────────
+    let parsedMin = null;
+    if (minPrice !== undefined && minPrice !== null && minPrice !== '') {
+      parsedMin = Number(minPrice);
+      if (isNaN(parsedMin) || parsedMin < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'minPrice must be a valid non-negative number.',
+        });
+      }
+    }
+
+    let parsedMax = null;
+    if (maxPrice !== undefined && maxPrice !== null && maxPrice !== '') {
+      parsedMax = Number(maxPrice);
+      if (isNaN(parsedMax) || parsedMax < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'maxPrice must be a valid non-negative number.',
+        });
+      }
+    }
+
+    if (parsedMin !== null && parsedMax !== null && parsedMin > parsedMax) {
+      return res.status(400).json({
+        success: false,
+        message: 'minPrice cannot be greater than maxPrice.',
+      });
+    }
+
+    // ── 3. Validate Sort Parameter ────────────────
+    let sortQuery = { createdAt: -1 }; // Default: newest first
+    if (sort !== undefined && sort !== null && sort !== '') {
+      const validSortOptions = ['price_asc', 'price_desc', 'newest'];
+      if (!validSortOptions.includes(sort)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid sort parameter '${sort}'. Allowed options: 'price_asc', 'price_desc', 'newest'.`,
+        });
+      }
+
+      if (sort === 'price_asc') {
+        sortQuery = { price: 1 };
+      } else if (sort === 'price_desc') {
+        sortQuery = { price: -1 };
+      } else if (sort === 'newest') {
+        sortQuery = { createdAt: -1 };
+      }
+    }
+
+    // ── 4. Build MongoDB Query Filter ─────────────
+    // Strict requirement: return ONLY active products
     const filter = { isActive: true };
 
-    // Search by name or brand (case-insensitive)
-    if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      filter.$or = [
-        { name: searchRegex },
-        { brand: searchRegex },
-      ];
+    // Case-insensitive search on name and brand
+    if (search && typeof search === 'string') {
+      const trimmedSearch = search.trim();
+      if (trimmedSearch.length > 0) {
+        const searchRegex = new RegExp(escapeRegex(trimmedSearch), 'i');
+        filter.$or = [
+          { name: searchRegex },
+          { brand: searchRegex },
+        ];
+      }
     }
 
-    // Filter by category (case-insensitive exact match)
-    if (category) {
-      filter.category = new RegExp(`^${category}$`, 'i');
+    // Category filter (case-insensitive exact match)
+    if (category && typeof category === 'string') {
+      const trimmedCategory = category.trim();
+      if (trimmedCategory.length > 0) {
+        filter.category = new RegExp(`^${escapeRegex(trimmedCategory)}$`, 'i');
+      }
     }
 
-    // Filter by price range
-    if (minPrice || maxPrice) {
+    // Price range filter
+    if (parsedMin !== null || parsedMax !== null) {
       filter.price = {};
-      if (minPrice && !isNaN(minPrice)) {
-        filter.price.$gte = Number(minPrice);
+      if (parsedMin !== null) {
+        filter.price.$gte = parsedMin;
       }
-      if (maxPrice && !isNaN(maxPrice)) {
-        filter.price.$lte = Number(maxPrice);
+      if (parsedMax !== null) {
+        filter.price.$lte = parsedMax;
       }
     }
 
-    // 2. Build Sort Order
-    let sortQuery = { createdAt: -1 }; // default: newest first
-    if (sort === 'price_asc') {
-      sortQuery = { price: 1 };
-    } else if (sort === 'price_desc') {
-      sortQuery = { price: -1 };
-    } else if (sort === 'newest') {
-      sortQuery = { createdAt: -1 };
-    }
-
-    // 3. Pagination Configuration
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    // ── 5. Execute Count & Paginated Query ─────────
+    const totalProducts = await Product.countDocuments(filter);
+    const totalPages = totalProducts === 0 ? 0 : Math.ceil(totalProducts / limitNum);
     const skip = (pageNum - 1) * limitNum;
 
-    // 4. Execute Query
     const products = await Product.find(filter)
       .sort(sortQuery)
       .skip(skip)
       .limit(limitNum)
-      // Optionally populate seller if needed (excluding password)
       .populate('seller', 'name email');
 
-    const totalProducts = await Product.countDocuments(filter);
-    const totalPages = Math.ceil(totalProducts / limitNum);
+    const hasNextPage = pageNum < totalPages;
+    const hasPrevPage = pageNum > 1 && (totalPages > 0 && pageNum <= totalPages + 1);
 
-    // 5. Send Response
-    res.status(200).json({
+    // ── 6. Send Standardized JSON Response ────────
+    return res.status(200).json({
       success: true,
       count: products.length,
-      total: totalProducts,
-      page: pageNum,
+      totalProducts,
+      currentPage: pageNum,
       totalPages,
+      hasNextPage,
+      hasPrevPage,
       products,
     });
   } catch (error) {
-    console.error('GetProducts error:', error);
-    res.status(500).json({
+    console.error('getProducts controller error:', error);
+    return res.status(500).json({
       success: false,
-      message: 'Failed to fetch products. Invalid query parameters or server error.',
+      message: 'Internal server error while fetching products.',
     });
   }
 };
