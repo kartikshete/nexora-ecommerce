@@ -36,7 +36,7 @@ export const ProductGrid = ({ products = [], onResetFilters, columns = 4 }) => {
   return (
     <div className={`grid ${gridColsClass} gap-6`}>
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} />
+        <ProductCard key={product._id || product.id} product={product} />
       ))}
     </div>
   );
